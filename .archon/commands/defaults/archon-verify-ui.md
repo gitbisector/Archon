@@ -60,9 +60,14 @@ mkdir -p "$ARTIFACTS_DIR/.verify-home"
 # Install deps in the worktree (slow, first run only)
 cd "$WORKTREE" && bun install --frozen-lockfile 2>/dev/null || bun install
 
-# Backend — isolated home, empty DATABASE_URL, allocated port
+# Backend — FULLY ISOLATED state. CRITICAL: in the Docker image `ARCHON_DOCKER=true`
+# forces getArchonHome() to `/.archon`, which makes `ARCHON_HOME` IGNORED and the
+# SQLite DB resolve to the LIVE `/.archon/archon.db`. So we must ALSO clear
+# ARCHON_DOCKER + WORKSPACE_PATH for the child, so isDocker()=false and ARCHON_HOME
+# (the throwaway dir) actually takes effect. (No-op on non-Docker hosts.)
 cd "$WORKTREE"
-ARCHON_HOME="$ARTIFACTS_DIR/.verify-home" DATABASE_URL= PORT=$BACKEND_PORT \
+env -u ARCHON_DOCKER -u WORKSPACE_PATH \
+  ARCHON_HOME="$ARTIFACTS_DIR/.verify-home" DATABASE_URL= PORT=$BACKEND_PORT \
   bun run --filter @archon/server dev > "$ARTIFACTS_DIR/.e2e-feature-backend.log" 2>&1 &
 echo $! > "$ARTIFACTS_DIR/.e2e-feature-backend-pid"
 
@@ -91,11 +96,17 @@ done
 
 If either server never becomes healthy after 2 attempts, jump to Phase 4 and record `UNVERIFIED`.
 
-Confirm DB isolation (defensive — the child must NOT have touched the live DB):
+**Hard isolation gate** — the child must be using the throwaway DB, never the live one.
+After the backend is healthy, confirm the isolated DB exists:
 
 ```bash
-ls -la "$ARTIFACTS_DIR/.verify-home/archon.db" 2>/dev/null && echo "isolated DB OK"
+ls -la "$ARTIFACTS_DIR/.verify-home/archon.db" && echo "ISOLATED DB OK"
 ```
+
+If `$ARTIFACTS_DIR/.verify-home/archon.db` does **not** exist once the server is healthy, the
+isolation FAILED (the child is using the live `/.archon/archon.db`). **STOP immediately** — do not
+seed any data or take any further action against this server. Kill it (scoped, by PID) and jump to
+Phase 4 with verdict **UNVERIFIED** ("DB isolation gate failed — refusing to write the live DB").
 
 ## Phase 2: Verify in the browser
 
