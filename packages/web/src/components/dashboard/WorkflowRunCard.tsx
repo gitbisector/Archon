@@ -17,12 +17,18 @@ import {
   AlertTriangle,
   Pause,
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 import type { DashboardRunResponse } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/format';
 import { useWorkflowStore } from '@/stores/workflow-store';
 import type { WorkflowState } from '@/lib/types';
 import { ConfirmRunActionDialog } from './ConfirmRunActionDialog';
+
+// Hoisted to module scope to prevent new references on every render
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
 
 interface WorkflowRunCardProps {
   run: DashboardRunResponse;
@@ -256,13 +262,11 @@ export function WorkflowRunCard({
       {run.status === 'paused' && run.metadata?.approval != null && (
         <div className="rounded-md bg-warning/5 border border-warning/20 px-3 py-2 flex items-start gap-2">
           <Pause className="h-4 w-4 text-warning shrink-0 mt-0.5" />
-          <p className="text-xs text-text-secondary">
-            {(
-              run.metadata.approval as {
-                message?: string;
-              }
-            )?.message ?? 'Waiting for approval'}
-          </p>
+          <div className="chat-markdown max-w-none text-xs text-text-secondary">
+            <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
+              {(run.metadata.approval as { message?: string })?.message ?? 'Waiting for approval'}
+            </ReactMarkdown>
+          </div>
         </div>
       )}
 

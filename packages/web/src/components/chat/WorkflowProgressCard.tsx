@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CheckCircle, ChevronRight, Loader2, Pause, XCircle } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { approveWorkflowRun, getWorkflowRunByWorker, rejectWorkflowRun } from '@/lib/api';
 import { useWorkflowStore } from '@/stores/workflow-store';
@@ -10,6 +13,9 @@ import { StatusIcon } from '@/components/workflows/StatusIcon';
 import { formatDurationMs } from '@/lib/format';
 import { isTerminalStatus } from '@/lib/workflow-utils';
 import type { DagNodeState } from '@/lib/types';
+
+// Hoisted to module scope to prevent new references on every render
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
 
 interface WorkflowProgressCardProps {
   workflowName: string;
@@ -206,9 +212,11 @@ export function WorkflowProgressCard({
             <div className="border-t border-border px-3 py-2 space-y-2">
               <div className="rounded-md bg-warning/5 border border-warning/20 px-3 py-2 flex items-start gap-2">
                 <Pause className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
-                <p className="text-xs text-text-secondary">
-                  {approval?.message ?? 'Waiting for approval'}
-                </p>
+                <div className="chat-markdown max-w-none text-xs text-text-secondary">
+                  <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
+                    {approval?.message ?? 'Waiting for approval'}
+                  </ReactMarkdown>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
