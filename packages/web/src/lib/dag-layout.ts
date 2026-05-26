@@ -45,10 +45,12 @@ export function layoutWithDagre(
 
 export function resolveNodeDisplay(dn: DagNode): {
   label: string;
-  nodeType: 'command' | 'prompt' | 'bash' | 'loop' | 'approval';
+  nodeType: 'command' | 'prompt' | 'bash' | 'loop' | 'approval' | 'script';
   promptText?: string;
   bashScript?: string;
   bashTimeout?: number;
+  scriptName?: string;
+  scriptRuntime?: string;
 } {
   if ('bash' in dn && dn.bash) {
     return {
@@ -66,6 +68,14 @@ export function resolveNodeDisplay(dn: DagNode): {
   }
   if ('approval' in dn && dn.approval) {
     return { label: 'Approval', nodeType: 'approval' };
+  }
+  if ('script' in dn && dn.script) {
+    return {
+      label: 'Script',
+      nodeType: 'script',
+      scriptName: dn.script,
+      scriptRuntime: dn.runtime,
+    };
   }
   return {
     label: 'Prompt',

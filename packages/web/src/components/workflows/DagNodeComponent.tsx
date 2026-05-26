@@ -5,12 +5,14 @@ import type { DagNode } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 export interface DagNodeData extends DagNode {
-  /** For command nodes: the command name. For prompt nodes: display label ("Prompt"). For bash: display label ("Shell"). */
+  /** For command nodes: the command name. For prompt nodes: display label ("Prompt"). For bash: display label ("Shell"). For script: display label ("Script"). */
   label: string;
-  nodeType: 'command' | 'prompt' | 'bash' | 'loop' | 'approval';
+  nodeType: 'command' | 'prompt' | 'bash' | 'loop' | 'approval' | 'script';
   promptText?: string;
   bashScript?: string;
   bashTimeout?: number;
+  scriptName?: string;
+  scriptRuntime?: string;
   /** Required by React Flow's Node<T> constraint — do not rely on this for typed access. */
   [key: string]: unknown;
 }
@@ -48,6 +50,12 @@ const TYPE_CONFIG = {
     badgeBg: 'bg-node-approval/20',
     badgeText: 'text-node-approval',
   },
+  script: {
+    badge: 'SCRIPT',
+    stripeColor: 'bg-node-script',
+    badgeBg: 'bg-node-script/20',
+    badgeText: 'text-node-script',
+  },
 } as const;
 
 export function getContentPreview(data: DagNodeData): string {
@@ -61,6 +69,10 @@ export function getContentPreview(data: DagNodeData): string {
       return data.bashScript?.split('\n')[0] ?? '';
     case 'approval':
       return '';
+    case 'script':
+      return data.scriptRuntime
+        ? `${data.scriptName} (${data.scriptRuntime})`
+        : (data.scriptName ?? '');
   }
 }
 
