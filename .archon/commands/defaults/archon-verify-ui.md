@@ -146,7 +146,41 @@ git add packages/web/<file1> packages/web/<file2>
 git commit -m "fix(web): correct rendering found during in-loop browser verification"
 ```
 
-## Phase 4: Clean up (scoped) and write the verdict
+## Phase 4: Publish screenshots so they render in the PR
+
+Screenshots in `$ARTIFACTS_DIR` are invisible to a PR reviewer. Push them to a `verify-artifacts`
+side branch on the repo (NOT the PR branch — keeps them out of the merge diff) so `create-pr` can
+embed them as images. Best-effort: if any step fails, skip it — `create-pr` falls back to naming the
+files.
+
+```bash
+REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)
+BR=verify-artifacts
+DEF=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)
+# Create the side branch once (off the default branch); ignore if it already exists.
+if [ -n "$REPO" ] && ! gh api "repos/$REPO/git/ref/heads/$BR" >/dev/null 2>&1; then
+  SHA=$(gh api "repos/$REPO/git/ref/heads/$DEF" --jq .object.sha 2>/dev/null)
+  [ -n "$SHA" ] && gh api -X POST "repos/$REPO/git/refs" -f ref="refs/heads/$BR" -f sha="$SHA" >/dev/null 2>&1 || true
+fi
+# Upload each screenshot via the Contents API; record the raw URL (renders in markdown).
+: > "$ARTIFACTS_DIR/.screenshot-urls"
+for png in "$ARTIFACTS_DIR"/ui-verify-*.png; do
+  [ -f "$png" ] || continue
+  name=$(basename "$png")
+  if [ -n "$REPO" ] && gh api -X PUT "repos/$REPO/contents/verification/$WORKFLOW_ID/$name" \
+       -f message="verify-ui screenshot $name ($WORKFLOW_ID)" -f branch="$BR" \
+       -f content="$(base64 -w0 "$png")" >/dev/null 2>&1; then
+    echo "https://github.com/$REPO/raw/$BR/verification/$WORKFLOW_ID/$name" >> "$ARTIFACTS_DIR/.screenshot-urls"
+  fi
+done
+cat "$ARTIFACTS_DIR/.screenshot-urls"
+```
+
+You will embed these URLs in the verdict's **Screenshots** section next (`![surface](url)`). If no
+URLs were printed (push failed / no repo access), fall back to listing the `ui-verify-*.png`
+filenames so the reviewer at least knows they exist in the artifacts.
+
+## Phase 5: Clean up (scoped) and write the verdict
 
 Best-effort cleanup of **your own** processes (the workflow's `cleanup-ui-verify` node is the
 guaranteed safety net). Scoped only — re-read the FORBIDDEN list above.
@@ -170,7 +204,12 @@ quote). **Always** write it, even on UNVERIFIED:
 
 **Verdict**: PASS | FAIL | UNVERIFIED
 **Goal**: <the user-visible thing that had to be correct>
-**Screenshots**: ui-verify-*.png (in $ARTIFACTS_DIR)
+
+## Screenshots
+<!-- Embed each URL from $ARTIFACTS_DIR/.screenshot-urls as an image so it renders in the PR. -->
+![<surface, e.g. dashboard>](<raw-url-1>)
+![<surface, e.g. chat>](<raw-url-2>)
+<!-- If .screenshot-urls is empty (push failed), instead list: ui-verify-*.png (in $ARTIFACTS_DIR) -->
 
 ## What I saw
 <observations per screenshot>
@@ -188,4 +227,6 @@ result to record and self-fix, not a reason to crash the run or escalate to broa
 ## Success criteria
 - Server booted with an **isolated** `ARCHON_HOME` (live `/.archon/archon.db` untouched).
 - A verdict written to `$ARTIFACTS_DIR/ui-verification.md` with at least one screenshot.
+- Screenshots pushed to the `verify-artifacts` side branch and embedded (by raw URL) in the
+  verdict's Screenshots section so they render in the PR.
 - Only scoped (`--session` / PID / port) cleanup was used.

@@ -255,7 +255,7 @@ nodes:
       6. Create a DRAFT PR: `gh pr create --draft --base $BASE_BRANCH`
          - Title: concise, imperative mood, under 70 chars
          - Body: if a PR template was found, fill in **every section** with details from the artifacts. Don't skip sections or leave placeholders. If no template, write a body with summary, changes, validation evidence, and `Fixes #...`.
-         - **Human Verification section**: if `$ARTIFACTS_DIR/ui-verification.md` exists, fill the template's "Human Verification" (or equivalent) section from it — state the agent's browser verdict (PASS / FAIL / UNVERIFIED) and reference the screenshot filenames. Do **not** write "not performed" when a verdict exists. If the file is absent (non-web change), describe the automated checks as usual.
+         - **Human Verification section**: if `$ARTIFACTS_DIR/ui-verification.md` exists, fill the template's "Human Verification" (or equivalent) section from it — state the agent's browser verdict (PASS / FAIL / UNVERIFIED) and **include its Screenshots section verbatim** (it contains `![surface](raw-url)` image embeds that render inline in the PR). Do **not** write "not performed" when a verdict exists. If the file is absent (non-web change), describe the automated checks as usual.
          - **PR body file location**: if you write the body to a file (e.g. for `--body-file`), the file MUST live at `$ARTIFACTS_DIR/pr-body.md` or under `/tmp/` — NEVER inside the worktree. Files like `.pr-body.md` at the repo root will be picked up by later commits.
          - Link to issue: include `Fixes #...` or `Closes #...`
       7. Capture PR identifiers:
