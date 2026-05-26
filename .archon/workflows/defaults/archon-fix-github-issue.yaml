@@ -145,6 +145,81 @@ nodes:
     context: fresh
 
   # ═══════════════════════════════════════════════════════════════
+  # PHASE 5.5: BROWSER VERIFICATION (web/UI changes only)
+  #   The agent boots an ISOLATED dev server (throwaway ARCHON_HOME so it never
+  #   touches the live DB) and drives agent-browser to *see* the change render
+  #   correctly, self-fixing on failure — BEFORE the PR is opened. Skipped
+  #   entirely for non-web changes. Safety rules live in archon-verify-ui.
+  # ═══════════════════════════════════════════════════════════════
+
+  - id: detect-web-changes
+    bash: |
+      # Emit 'true' iff the diff vs the base branch touches the web UI package.
+      BASE="$BASE_BRANCH"
+      CHANGED=$(git diff --name-only "$BASE"...HEAD 2>/dev/null || true)
+      if echo "$CHANGED" | grep -q '^packages/web/'; then
+        echo true
+      else
+        echo false
+      fi
+    depends_on: [validate]
+
+  - id: find-ports
+    bash: |
+      # Let the OS pick truly free ports — never reuse the live server's port.
+      BACKEND_PORT=$(bun -e "const s = Bun.serve({port: 0, fetch: () => new Response('')}); console.log(s.port); s.stop()")
+      FRONTEND_PORT=$(bun -e "const s = Bun.serve({port: 0, fetch: () => new Response('')}); console.log(s.port); s.stop()")
+      echo "$BACKEND_PORT" > "$ARTIFACTS_DIR/.backend-port"
+      echo "$FRONTEND_PORT" > "$ARTIFACTS_DIR/.frontend-port"
+      echo "BACKEND_PORT=$BACKEND_PORT"
+      echo "FRONTEND_PORT=$FRONTEND_PORT"
+    depends_on: [detect-web-changes]
+    when: "$detect-web-changes.output == 'true'"
+
+  - id: verify-ui
+    command: archon-verify-ui
+    depends_on: [detect-web-changes, find-ports]
+    when: "$detect-web-changes.output == 'true'"
+    context: fresh
+    model: opus[1m]
+    idle_timeout: 1800000
+    skills:
+      - agent-browser
+
+  - id: cleanup-ui-verify
+    bash: |
+      # Safety-net cleanup — SCOPED kills only (never broad pkill: that would kill
+      # the parent Archon). Mirrors archon-validate-pr cleanup-processes.
+      BACKEND_PORT=$(cat "$ARTIFACTS_DIR/.backend-port" 2>/dev/null | tr -d '\n')
+      FRONTEND_PORT=$(cat "$ARTIFACTS_DIR/.frontend-port" 2>/dev/null | tr -d '\n')
+
+      for pidfile in "$ARTIFACTS_DIR"/.e2e-feature-*-pid; do
+        if [ -f "$pidfile" ]; then
+          PID=$(cat "$pidfile" | tr -d '\n')
+          echo "Killing PID $PID from $pidfile"
+          kill "$PID" 2>/dev/null || true
+        fi
+      done
+
+      for PORT in $BACKEND_PORT $FRONTEND_PORT; do
+        [ -n "$PORT" ] || continue
+        fuser -k "$PORT/tcp" 2>/dev/null || true
+        lsof -ti:"$PORT" 2>/dev/null | xargs kill -9 2>/dev/null || true
+      done
+
+      BROWSER_SESSION=$(cat "$ARTIFACTS_DIR/.browser-session" 2>/dev/null | tr -d '\n')
+      if [ -n "$BROWSER_SESSION" ]; then
+        agent-browser --session "$BROWSER_SESSION" close 2>/dev/null || true
+      fi
+
+      # Remove the throwaway isolated home (held the verify-only SQLite DB).
+      rm -rf "$ARTIFACTS_DIR/.verify-home" 2>/dev/null || true
+      echo "UI-verify cleanup complete"
+    depends_on: [verify-ui]
+    trigger_rule: all_done
+    when: "$detect-web-changes.output == 'true'"
+
+  # ═══════════════════════════════════════════════════════════════
   # PHASE 6: CREATE DRAFT PR
   # ═══════════════════════════════════════════════════════════════
 
@@ -173,12 +248,14 @@ nodes:
          - `$ARTIFACTS_DIR/investigation.md` or `$ARTIFACTS_DIR/plan.md`
          - `$ARTIFACTS_DIR/implementation.md`
          - `$ARTIFACTS_DIR/validation.md`
+         - `$ARTIFACTS_DIR/ui-verification.md` (browser verification verdict + screenshots — present only for web/UI changes)
       4. Check if a PR already exists for this branch: `gh pr list --head $(git branch --show-current)`
          - If PR exists, skip creation and capture its number
       5. Look for the project's PR template at `.github/pull_request_template.md`, `.github/PULL_REQUEST_TEMPLATE.md`, or `docs/PULL_REQUEST_TEMPLATE.md`. Read whichever one exists.
       6. Create a DRAFT PR: `gh pr create --draft --base $BASE_BRANCH`
          - Title: concise, imperative mood, under 70 chars
          - Body: if a PR template was found, fill in **every section** with details from the artifacts. Don't skip sections or leave placeholders. If no template, write a body with summary, changes, validation evidence, and `Fixes #...`.
+         - **Human Verification section**: if `$ARTIFACTS_DIR/ui-verification.md` exists, fill the template's "Human Verification" (or equivalent) section from it — state the agent's browser verdict (PASS / FAIL / UNVERIFIED) and reference the screenshot filenames. Do **not** write "not performed" when a verdict exists. If the file is absent (non-web change), describe the automated checks as usual.
          - **PR body file location**: if you write the body to a file (e.g. for `--body-file`), the file MUST live at `$ARTIFACTS_DIR/pr-body.md` or under `/tmp/` — NEVER inside the worktree. Files like `.pr-body.md` at the repo root will be picked up by later commits.
          - Link to issue: include `Fixes #...` or `Closes #...`
       7. Capture PR identifiers:
@@ -188,7 +265,12 @@ nodes:
          PR_URL=$(gh pr view --json url -q '.url')
          echo "$PR_URL" > "$ARTIFACTS_DIR/.pr-url"
          ```
-    depends_on: [validate]
+    # Runs after validate AND the (conditional) browser-verify path settles. The rule
+    # tolerates verify-ui being skipped (non-web changes) while still requiring validate
+    # to have succeeded: none_failed = a failed validate blocks PR creation; min_one_success
+    # = the skipped verify path alone won't.
+    depends_on: [validate, cleanup-ui-verify]
+    trigger_rule: none_failed_min_one_success
     context: fresh
 
   # ═══════════════════════════════════════════════════════════════
