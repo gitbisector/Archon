@@ -69,10 +69,13 @@ export function getContentPreview(data: DagNodeData): string {
       return data.bashScript?.split('\n')[0] ?? '';
     case 'approval':
       return '';
-    case 'script':
-      return data.scriptRuntime
-        ? `${data.scriptName} (${data.scriptRuntime})`
-        : (data.scriptName ?? '');
+    case 'script': {
+      const parts = [
+        data.scriptName,
+        data.scriptRuntime ? `(${data.scriptRuntime})` : undefined,
+      ].filter(Boolean);
+      return parts.join(' ');
+    }
   }
 }
 
