@@ -84,7 +84,7 @@ to the user on whatever platform they're using (CLI, Slack, GitHub, etc.). On th
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `approval.message` | string | Yes | The message shown to the user when the workflow pauses |
+| `approval.message` | string | Yes | The message shown to the user when the workflow pauses. Supports [GitHub Flavored Markdown](https://github.github.com/gfm/) (GFM) — bold, italic, lists, links, inline code, and line breaks are rendered in the Web UI. |
 | `approval.capture_response` | boolean | No | When `true`, the user's approval comment is stored as `$<node-id>.output` for downstream nodes. Default: `false` |
 | `approval.on_reject.prompt` | string | No | Prompt template run via AI when the user rejects. `$REJECTION_REASON` is substituted with the reject reason. After running, the workflow re-pauses at the same gate |
 | `approval.on_reject.max_attempts` | integer | No | Max times the on_reject prompt runs before the workflow is cancelled. Range: 1–10. Default: 3 |

@@ -2,14 +2,12 @@ import { memo, useMemo, useState } from 'react';
 import { Copy, Check, Paperclip, X } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 import type { ChatMessage, FileAttachment } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { REMARK_PLUGINS } from '@/lib/markdown';
 import { ArtifactViewerModal } from '@/components/workflows/ArtifactViewerModal';
 
 // Hoisted to module scope to prevent new references on every render
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
 const REHYPE_PLUGINS = [rehypeHighlight];
 
 // Matches artifact paths (forward- and back-slash safe); groups: [1] runId, [2] filename

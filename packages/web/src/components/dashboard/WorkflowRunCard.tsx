@@ -18,17 +18,13 @@ import {
   Pause,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 import type { DashboardRunResponse } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/format';
+import { REMARK_PLUGINS } from '@/lib/markdown';
 import { useWorkflowStore } from '@/stores/workflow-store';
 import type { WorkflowState } from '@/lib/types';
 import { ConfirmRunActionDialog } from './ConfirmRunActionDialog';
-
-// Hoisted to module scope to prevent new references on every render
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
 
 interface WorkflowRunCardProps {
   run: DashboardRunResponse;

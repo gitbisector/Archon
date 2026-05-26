@@ -3,19 +3,15 @@ import { useNavigate } from 'react-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CheckCircle, ChevronRight, Loader2, Pause, XCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { approveWorkflowRun, getWorkflowRunByWorker, rejectWorkflowRun } from '@/lib/api';
+import { REMARK_PLUGINS } from '@/lib/markdown';
 import { useWorkflowStore } from '@/stores/workflow-store';
 import { ConfirmRunActionDialog } from '@/components/dashboard/ConfirmRunActionDialog';
 import { StatusIcon } from '@/components/workflows/StatusIcon';
 import { formatDurationMs } from '@/lib/format';
 import { isTerminalStatus } from '@/lib/workflow-utils';
 import type { DagNodeState } from '@/lib/types';
-
-// Hoisted to module scope to prevent new references on every render
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
 
 interface WorkflowProgressCardProps {
   workflowName: string;
